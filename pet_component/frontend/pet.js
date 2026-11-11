@@ -147,6 +147,7 @@ export default function renderPet(component) {
   root.style.setProperty("--pet-size", `${size}px`);
   root.dataset.state = String(payload.state || "idle");
   root.dataset.pixelated = payload.pixelated === false ? "false" : "true";
+  root.classList.toggle("floating", Boolean(payload.floating));
   root.style.setProperty("--look-x", baseLook.x.toFixed(3));
   root.style.setProperty("--look-y", baseLook.y.toFixed(3));
 

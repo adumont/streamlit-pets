@@ -8,9 +8,74 @@ import streamlit as st
 from pet_component import load_codex_pet, pet
 
 ROOT = Path(__file__).parent
-CLAWD_DIR = ROOT / "assets" / "pets" / "clawd"
+PET_DIRS = {
+    "clawd": ROOT / "assets" / "pets" / "clawd",
+    "peach": ROOT / "assets" / "pets" / "peach-cat",
+}
 MOCHI = "Mochi (SVG integrado)"
 CLAWD = "Clawd (atlas Codex v2)"
+PEACH = "Peach (atlas Codex v2)"
+PET_NAMES = {MOCHI: "Mochi", CLAWD: "Clawd", PEACH: "Peach"}
+
+LANDING_CSS = """
+<style>
+  main.stMain {
+    position: relative;
+  }
+
+  [data-testid="stBottom"] {
+    position: absolute;
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+  }
+
+  .pet-landing {
+    position: fixed;
+    left: 50%;
+    bottom: calc(50% + 92px);
+    transform: translateX(-50%);
+    z-index: 100;
+    width: min(704px, calc(100vw - 48px));
+    text-align: center;
+    pointer-events: none;
+    animation: pet-landing-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .pet-landing h1 {
+    margin: 0 0 0.55rem;
+    color: var(--st-text-color, #2b2118);
+    font-size: clamp(2.35rem, 5vw, 3.8rem);
+    font-weight: 800;
+    letter-spacing: -0.045em;
+    line-height: 1.02;
+  }
+
+  .pet-landing p {
+    margin: 0;
+    color: var(--st-text-color, #6b5a4c);
+    font-size: clamp(1rem, 1.6vw, 1.15rem);
+    opacity: 0.7;
+  }
+
+  @keyframes pet-landing-rise {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 14px);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+  }
+
+  @media (max-height: 560px) {
+    .pet-landing {
+      display: none;
+    }
+  }
+</style>
+"""
 
 st.set_page_config(page_title="Streamlit Pets", layout="centered")
 
@@ -26,12 +91,12 @@ if "pet_message" not in st.session_state:
     st.session_state.pet_message = "¡Hola! Soy Mochi. Escríbeme algo o hazme click."
 if "pokes" not in st.session_state:
     st.session_state.pokes = 0
-if "last_exchange" not in st.session_state:
-    st.session_state.last_exchange = None
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
 
 def current_pet_name() -> str:
-    return "Clawd" if st.session_state.pet_choice == CLAWD else "Mochi"
+    return PET_NAMES.get(st.session_state.pet_choice, "Mochi")
 
 
 def set_mood(state: str, message: str) -> None:
@@ -51,7 +116,7 @@ def on_poke() -> None:
 
 def reset_pet() -> None:
     st.session_state.pokes = 0
-    st.session_state.last_exchange = None
+    st.session_state.messages = []
     set_mood("waving", f"¡Hola de nuevo! Soy {current_pet_name()}.")
 
 
@@ -60,48 +125,40 @@ def normalize(text: str) -> str:
     return "".join(char for char in decomposed if not unicodedata.combining(char))
 
 
-def reply_for(text: str) -> tuple[str, str]:
+def mood_for(text: str) -> str:
     clean = normalize(text)
     rules = [
-        (("hola", "hey", "hi", "buenas", "saluda"), "waving", "¡Hola! Me alegra verte."),
-        (("juega", "jugar", "pelota", "corre", "run"), "running-right", "¡A correr! Sígueme."),
-        (("salta", "brinca", "jump"), "jumping", "¡Boing! ¡Boing!"),
-        (("duerme", "dormir", "sueno", "sleep", "descansa"), "sleeping", "Zzz... cinco minutitos."),
-        (("triste", "mal", "error", "fail", "llora"), "failed", "Aw... ¿me das un abrazo?"),
-        (("espera", "wait", "turno", "paciencia"), "waiting", "Esperando tu siguiente mensaje..."),
-        (("revisa", "mira", "review", "lee", "analiza"), "review", "Revisando todo con lupa."),
-        (("trabaja", "working", "codigo", "programa", "procesa"), "running", "Trabajando duro..."),
-        (("gracias", "buen", "bien", "genial"), "jumping", "¡Gracias a ti!"),
+        (("hola", "hey", "hi", "buenas", "saluda"), "waving"),
+        (("juega", "jugar", "pelota", "corre", "run"), "running-right"),
+        (("salta", "brinca", "jump"), "jumping"),
+        (("duerme", "dormir", "sueno", "sleep", "descansa"), "sleeping"),
+        (("triste", "mal", "error", "fail", "llora"), "failed"),
+        (("espera", "wait", "turno", "paciencia"), "waiting"),
+        (("revisa", "mira", "review", "lee", "analiza"), "review"),
+        (("trabaja", "working", "codigo", "programa", "procesa"), "running"),
+        (("gracias", "buen", "bien", "genial"), "jumping"),
     ]
-    for keywords, state, reply in rules:
+    for keywords, state in rules:
         if any(keyword in clean for keyword in keywords):
-            return state, reply
-    return "idle", "Te escucho. Prueba con: hola, juega, salta, duerme, trabaja o revisa."
+            return state
+    return "idle"
 
 
 def handle_message(text: str) -> None:
-    state, reply = reply_for(text)
-    st.session_state.pet_state = state
+    reply = f"{text} ✨"
+    st.session_state.pet_state = mood_for(text)
     st.session_state.pet_message = reply
-    st.session_state.last_exchange = (text, reply)
+    st.session_state.messages.append({"role": "user", "content": text})
+    st.session_state.messages.append({"role": "assistant", "content": reply})
 
 
 # ---------------------------------------------------------------------------
-# Hello world + message input
+# Chat input
 # ---------------------------------------------------------------------------
-
-st.title("Hello, world!")
-st.write(
-    "Este es el *hello world* de Streamlit, con un extra: un componente de "
-    "mascota bidireccional compatible con los sprites de "
-    "[awesome-codex-pet](https://github.com/legeling/awesome-codex-pet)."
-)
 
 prompt = st.chat_input("Dile algo a tu mascota: hola, juega, duerme...")
 if prompt:
     handle_message(prompt)
-
-st.divider()
 
 # ---------------------------------------------------------------------------
 # Sidebar
@@ -111,47 +168,23 @@ with st.sidebar:
     st.header("Mascota")
     st.radio(
         "Elige un renderer",
-        [MOCHI, CLAWD],
+        [MOCHI, CLAWD, PEACH],
         key="pet_choice",
         on_change=on_pet_change,
     )
     size = st.slider("Tamaño", min_value=160, max_value=300, value=220, step=20)
     pixelated = st.toggle("Pixel art nítido", value=True)
+    floating = st.toggle(
+        "Flotar en la esquina",
+        value=True,
+        help="Ancla la mascota abajo a la derecha, junto al chat.",
+    )
+
     st.divider()
-    st.caption(
-        "Clawd se carga desde `assets/pets/clawd/` con el contrato de atlas "
-        "de Codex: celdas de 192x208, 8 columnas y filas de animación."
-    )
-    st.button("Reiniciar mascota", use_container_width=True, on_click=reset_pet)
-
-# ---------------------------------------------------------------------------
-# Pet + controls
-# ---------------------------------------------------------------------------
-
-pet_col, controls_col = st.columns([1.35, 1], gap="large")
-
-with pet_col:
-    sprite = load_codex_pet(CLAWD_DIR) if st.session_state.pet_choice == CLAWD else None
-    pet(
-        state=st.session_state.pet_state,
-        message=st.session_state.pet_message,
-        sprite=sprite,
-        size=size,
-        pixelated=pixelated,
-        pet_name=current_pet_name(),
-        key="pet",
-        on_poke=on_poke,
-    )
+    st.subheader("Controles")
     st.caption(
         f"Pokes: **{st.session_state.pokes}** · Estado: "
         f"`{st.session_state.pet_state}`"
-    )
-
-with controls_col:
-    st.subheader("Hablar con la mascota")
-    st.caption(
-        "Los mensajes van de Python al componente con `data`. Los clicks de la "
-        "mascota vuelven a Python como trigger `poked`."
     )
 
     actions = [
@@ -173,26 +206,76 @@ with controls_col:
                 args=(state, message),
             )
 
-    if st.session_state.last_exchange:
-        user_text, reply = st.session_state.last_exchange
-        st.divider()
-        st.markdown(f"**Tú:** {user_text}")
-        st.markdown(f"**{current_pet_name()}:** {reply}")
+    st.divider()
+    st.button("Reiniciar mascota", use_container_width=True, on_click=reset_pet)
+    st.caption(
+        "Clawd y Peach se cargan con el contrato de atlas de Codex: celdas de "
+        "192x208, 8 columnas y filas de animación. Peach Cat es fan art de "
+        "Peach and Goma (no hay Goma en el catálogo)."
+    )
 
-with st.expander("Cómo funciona el componente"):
-    st.code(
-        """from pet_component import pet, load_codex_pet
+    with st.expander("Cómo funciona el componente"):
+        st.code(
+            """from pet_component import pet, load_codex_pet
 
 pet(
     state="waving",                 # fila del atlas Codex
     message="¡Hola desde Streamlit!",
-    sprite=load_codex_pet("assets/pets/clawd"),
+    sprite=load_codex_pet("assets/pets/peach-cat"),
+    floating=True,                 # esquina inferior derecha
     key="pet",
     on_poke=lambda: None,          # trigger "poked"
 )""",
-        language="python",
-    )
+            language="python",
+        )
+        st.markdown(
+            "El frontend es JavaScript vanilla sobre Canvas/SVG. Para un atlas "
+            "v2 usa las filas 0-8 como estados y las filas 9-10 para las 16 "
+            "miradas."
+        )
+
+# ---------------------------------------------------------------------------
+# Pet
+# ---------------------------------------------------------------------------
+
+pet_choice = st.session_state.pet_choice
+if pet_choice == CLAWD:
+    sprite = load_codex_pet(PET_DIRS["clawd"])
+elif pet_choice == PEACH:
+    sprite = load_codex_pet(PET_DIRS["peach"])
+else:
+    sprite = None
+
+pet_size = min(size, 190) if floating else size
+pet_kwargs = {
+    "state": st.session_state.pet_state,
+    "message": st.session_state.pet_message,
+    "sprite": sprite,
+    "size": pet_size,
+    "pixelated": pixelated,
+    "pet_name": current_pet_name(),
+    "key": "pet",
+    "on_poke": on_poke,
+}
+
+pet(floating=floating, **pet_kwargs)
+
+# ---------------------------------------------------------------------------
+# Main pane
+# ---------------------------------------------------------------------------
+
+if not st.session_state.messages:
     st.markdown(
-        "El frontend es JavaScript vanilla sobre Canvas/SVG. Para un atlas v2 "
-        "usa las filas 0-8 como estados y las filas 9-10 para las 16 miradas."
+        LANDING_CSS
+        + (
+            "<div class=\"pet-landing\">"
+            "<h1>Hello, world!</h1>"
+            f"<p>Dile algo a {current_pet_name()} para empezar.</p>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
     )
+else:
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])

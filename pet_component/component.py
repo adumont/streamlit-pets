@@ -32,6 +32,7 @@ def pet(
     sprite: dict[str, Any] | None = None,
     size: int = 220,
     pixelated: bool = True,
+    floating: bool = False,
     pet_name: str = "Mochi",
     key: str | None = None,
     on_poke: Callable[[], None] | None = None,
@@ -56,6 +57,10 @@ def pet(
         Rendered height of the pet in pixels.
     pixelated:
         Keep hard pixel edges when scaling the atlas.
+    floating:
+        Pin the pet to the bottom-right corner of the viewport. The component
+        mount takes almost no layout space, so it behaves like a desktop pet
+        next to Streamlit's chat input.
     pet_name:
         Name sent back with the ``poked`` trigger and used for accessibility.
     key:
@@ -65,7 +70,7 @@ def pet(
         The component result exposes the latest event as ``result.poked``.
     """
 
-    height = max(220, int(size) + 100)
+    height = 1 if floating else max(220, int(size) + 100)
     data = {
         "state": state,
         "message": message or "",
@@ -73,13 +78,14 @@ def pet(
         "sprite": sprite,
         "size": int(size),
         "pixelated": bool(pixelated),
+        "floating": bool(floating),
         "petName": pet_name,
     }
 
     return _pet_component(
         data=data,
         key=key,
-        width="stretch",
+        width="content" if floating else "stretch",
         height=height,
         on_poked_change=on_poke or _noop,
     )
