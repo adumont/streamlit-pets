@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.py[cod]
+.streamlit-server.pid
+.streamlit/secrets.toml
+.opencode/
+*.log
+.DS_Store
