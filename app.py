@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import html
 import unicodedata
+from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -16,6 +18,127 @@ MOCHI = "Mochi (SVG integrado)"
 CLAWD = "Clawd (atlas Codex v2)"
 PEACH = "Peach (atlas Codex v2)"
 PET_NAMES = {MOCHI: "Mochi", CLAWD: "Clawd", PEACH: "Peach"}
+USERNAME = "Alex"
+META_POSITIONS = {
+    "Arriba izquierda": "above-left",
+    "Arriba derecha": "above-right",
+    "Abajo izquierda": "below-left",
+    "Abajo derecha": "below-right",
+}
+MESSAGE_ACTIONS = ["Valorar", "Reiniciar desde aquí", "Bifurcar desde aquí"]
+
+CHAT_CSS = """
+<style>
+  [data-testid="stChatMessage"]:has([data-testid="stMenuButton"]) {
+    position: relative;
+    overflow: visible !important;
+  }
+
+  [data-testid="stChatMessage"]:has(.chat-meta) [data-testid="stElementContainer"]:has(.chat-meta) {
+    position: static !important;
+  }
+
+  .chat-meta {
+    position: absolute;
+    z-index: 2;
+    color: var(--st-text-color, #6b5a4c);
+    font-size: 0.66rem;
+    font-weight: 500;
+    line-height: 1.2;
+    opacity: 0.58;
+    white-space: nowrap;
+    pointer-events: none;
+    width: 6.75rem;
+  }
+
+  .chat-meta.pos-above-left {
+    bottom: calc(100% + 6px);
+    left: 0.15rem;
+    text-align: left;
+  }
+
+  .chat-meta.pos-above-right {
+    bottom: calc(100% + 6px);
+    right: 1.4rem;
+    text-align: right;
+  }
+
+  .chat-meta.pos-below-left {
+    top: calc(100% + 6px);
+    left: 0.15rem;
+    text-align: left;
+  }
+
+  .chat-meta.pos-below-right {
+    top: calc(100% + 6px);
+    right: 1.4rem;
+    text-align: right;
+  }
+
+  [data-testid="stChatMessage"] [data-testid="stElementContainer"]:has([data-testid="stMenuButton"]) {
+    position: absolute;
+    top: -1.35rem;
+    right: 0;
+    z-index: 5;
+    width: auto;
+    margin: 0;
+  }
+
+  [data-testid="stChatMessage"]:has(.chat-meta.pos-above-left) [data-testid="stElementContainer"]:has([data-testid="stMenuButton"]) {
+    top: auto;
+    bottom: calc(100% + 0.5px);
+    left: 6.8rem;
+    right: auto;
+    transform: none;
+  }
+
+  [data-testid="stChatMessage"]:has(.chat-meta.pos-above-right) [data-testid="stElementContainer"]:has([data-testid="stMenuButton"]) {
+    top: auto;
+    bottom: calc(100% + 0.5px);
+    left: auto;
+    right: 0.15rem;
+    transform: none;
+  }
+
+  [data-testid="stChatMessage"]:has(.chat-meta.pos-below-left) [data-testid="stElementContainer"]:has([data-testid="stMenuButton"]) {
+    top: calc(100% - 1.5px);
+    bottom: auto;
+    left: 6.8rem;
+    right: auto;
+    transform: none;
+  }
+
+  [data-testid="stChatMessage"]:has(.chat-meta.pos-below-right) [data-testid="stElementContainer"]:has([data-testid="stMenuButton"]) {
+    top: calc(100% - 1.5px);
+    bottom: auto;
+    left: auto;
+    right: 0.15rem;
+    transform: none;
+  }
+
+  [data-testid="stChatMessage"] [data-testid="stMenuButton"],
+  [data-testid="stChatMessage"] [data-testid="stMenuButtonButton"] {
+    width: auto !important;
+  }
+
+  [data-testid="stChatMessage"] [data-testid="stMenuButton"] button {
+    min-height: 1.3rem;
+    height: 1.3rem;
+    padding: 0 0.4rem;
+    border-radius: 999px;
+    color: var(--st-text-color, #6b5a4c);
+    font-size: 0.66rem;
+    font-weight: 500;
+    line-height: 1;
+    opacity: 0.58;
+  }
+
+  [data-testid="stChatMessage"] [data-testid="stMenuButton"] svg,
+  [data-testid="stChatMessage"] [data-testid="stMenuButton"] div[aria-hidden="true"] {
+    display: none;
+  }
+</style>
+"""
 
 LANDING_CSS = """
 <style>
@@ -148,7 +271,14 @@ def handle_message(text: str) -> None:
     reply = f"{text} ✨"
     st.session_state.pet_state = mood_for(text)
     st.session_state.pet_message = reply
-    st.session_state.messages.append({"role": "user", "content": text})
+    st.session_state.messages.append(
+        {
+            "role": "user",
+            "content": text,
+            "username": USERNAME,
+            "timestamp": datetime.now().strftime("%d/%m/%Y %H:%M"),
+        }
+    )
     st.session_state.messages.append({"role": "assistant", "content": reply})
 
 
@@ -178,6 +308,13 @@ with st.sidebar:
         "Flotar en la esquina",
         value=True,
         help="Ancla la mascota abajo a la derecha, junto al chat.",
+    )
+    st.radio(
+        "Posición fecha/hora",
+        list(META_POSITIONS),
+        index=list(META_POSITIONS).index("Arriba derecha"),
+        key="meta_corner_v2",
+        help="Dónde mostrar el nombre, la fecha y la hora de cada mensaje.",
     )
 
     st.divider()
@@ -276,6 +413,28 @@ if not st.session_state.messages:
         unsafe_allow_html=True,
     )
 else:
-    for message in st.session_state.messages:
+    st.markdown(CHAT_CSS, unsafe_allow_html=True)
+    meta_position = META_POSITIONS[st.session_state.meta_corner_v2]
+    for index, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+            if message["role"] == "user":
+                username = html.escape(str(message.get("username", USERNAME)))
+                timestamp = html.escape(str(message.get("timestamp", "—")))
+                text = html.escape(str(message["content"]))
+                st.markdown(
+                    f'<div class="chat-meta pos-{meta_position}">'
+                    f"{username} · {timestamp}"
+                    "</div>\n\n"
+                    f"{text}",
+                    unsafe_allow_html=True,
+                )
+                action = st.menu_button(
+                    "≡",
+                    MESSAGE_ACTIONS,
+                    key=f"message_menu_{index}",
+                    type="tertiary",
+                )
+                if action:
+                    st.toast(f"{action}: próximamente")
+            else:
+                st.markdown(message["content"])
